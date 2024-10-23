@@ -20,13 +20,17 @@ const userSchema = new mongoose.Schema({
     },
     gender: {
         type: String,
-        enum: ['male', 'female', 'other'],
+        enum: ['Nam', 'Nữ', 'Khác', 'male', 'female', 'other'],
         default: null,
     },
     avatar: {
         type: String,
         default: null,
     },
+    friends: [{ 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'User' 
+    }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

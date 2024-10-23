@@ -5,6 +5,7 @@ const validator = require('validator');
 const fs = require('fs');
 const path = require('path'); 
 const fsPromises = require('fs').promises;
+const FriendRequest = require('../Models/friendRequestModel'); 
 
 
 const createToken = (_id) => {
@@ -24,7 +25,7 @@ const authMiddleware = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-        req.user = decoded;  
+        req.user = { _id: decoded._id }; 
         next();  
     } catch (error) {
         return res.status(401).json({ message: 'Token không hợp lệ!' });
@@ -146,4 +147,87 @@ const getUsers = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser, getUserProfile, updateUser, getUsers, authMiddleware };
+
+const searchUsers = async (req, res) => {
+    const { query } = req.query;
+    try {
+        const users = await userModel.find({
+            $or: [
+                { name: { $regex: query, $options: 'i' } },
+                { email: { $regex: query, $options: 'i' } }
+            ]
+        }).select('-password -friends'); 
+
+        res.status(200).json(users);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: 'Đã xảy ra lỗi khi tìm kiếm người dùng.', error: error.message });
+    }
+};
+
+
+const getFriends = async (req, res) => {
+    const userId = req.user._id;
+
+    try {
+        
+        const user = await userModel.findById(userId).populate('friends', 'name avatar');
+        
+        if (!user) {
+            return res.status(404).json({ message: 'Người dùng không tồn tại' });
+        }
+
+        res.status(200).json(user.friends); 
+    } catch (err) {
+        console.error('Lỗi khi lấy danh sách bạn bè:', err); 
+        res.status(500).json({ message: 'Có lỗi xảy ra khi lấy danh sách bạn bè' });
+    }
+};
+
+const removeFriend = async (req, res) => {
+    const friendId = req.params.friendId; 
+    const userId = req.user._id; 
+
+    try {
+    
+        const user = await userModel.findById(userId);
+
+        if (!user) {
+            console.log('User not found with ID:', userId);
+            return res.status(404).json({ message: 'Người dùng không tồn tại.' });
+        }
+
+    
+        user.friends = user.friends.filter(friend => friend.toString() !== friendId);
+        await user.save();
+
+    
+        const friend = await userModel.findById(friendId);
+
+        if (friend) {
+        
+            friend.friends = friend.friends.filter(friend => friend.toString() !== userId);
+            await friend.save();
+        }
+
+        res.status(200).json({ message: 'Đã xóa bạn thành công.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Có lỗi xảy ra khi xóa bạn bè.' });
+    }
+};
+
+
+
+module.exports = {
+    registerUser,
+    loginUser,
+    getUserProfile,
+    updateUser,
+    getUsers,
+    searchUsers,
+    authMiddleware,
+    getFriends,
+    removeFriend
+};
+
